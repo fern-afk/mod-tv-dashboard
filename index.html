@@ -22,7 +22,7 @@ var u=[
 ],f=document.getElementById('f'),i=0,hb=Date.now();
 function next(){f.src=u[i]+'&_cb='+Date.now();i=(i+1)%u.length;hb=Date.now();setTimeout(next,20000);}
 next();
-setInterval(function(){if(Date.now()-hb>90000)location.reload(true);},10000);
+setInterval(function(){if(Date.now()-hb>90000)location.reload(true);},30000);
 document.addEventListener('visibilitychange',function(){if(!document.hidden)location.reload(true);});
 setTimeout(function(){location.reload(true);},1800000);
 </script>
