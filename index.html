@@ -20,9 +20,9 @@ var u=[
 'https://app.powerbi.com/view?r=eyJrIjoiZGI4OGM2NDAtMDc3OC00OWY0LTkxNDktNTEwMmNjNjI5MDkzIiwidCI6ImI0YjhmOWZlLTBjYjQtNDFjOS04M2RmLTAxYmM4YTEwYzkxOSIsImMiOjR9&pageName=b36eebe4c9fe3f9de6ae',
 'https://app.powerbi.com/view?r=eyJrIjoiYTE3MDIwZGEtYWUyNC00NDc5LWEzMjYtNGFjYzA3ODIwZmI0IiwidCI6ImI0YjhmOWZlLTBjYjQtNDFjOS04M2RmLTAxYmM4YTEwYzkxOSIsImMiOjR9&pageName=a71bd25add4af469794b'
 ],f=document.getElementById('f'),i=0,hb=Date.now();
-function next(){f.src=u[i]+'&_cb='+Date.now();i=(i+1)%u.length;hb=Date.now();setTimeout(next,20000);}
+function next(){f.src=u[i]+'&_cb='+Date.now();i=(i+1)%u.length;hb=Date.now();setTimeout(next,90000);}
 next();
-setInterval(function(){if(Date.now()-hb>90000)location.reload(true);},30000);
+setInterval(function(){if(Date.now()-hb>90000)location.reload(true);},90000);
 document.addEventListener('visibilitychange',function(){if(!document.hidden)location.reload(true);});
 setTimeout(function(){location.reload(true);},1800000);
 </script>
