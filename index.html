@@ -23,7 +23,6 @@ var u=[
 function next(){f.src=u[i]+'&_cb='+Date.now();i=(i+1)%u.length;hb=Date.now();setTimeout(next,90000);}
 next();
 setInterval(function(){if(Date.now()-hb>90000)location.reload(true);},90000);
-document.addEventListener('visibilitychange',function(){if(!document.hidden)location.reload(true);});
 setTimeout(function(){location.reload(true);},1800000);
 </script>
 </body>
