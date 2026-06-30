@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Dashboard TV — MODASA</title>
+  <meta name="description" content="Panel de dashboards Power BI para TV Hisense VIDAA">
+
+  <!-- ═══ FORCE NO CACHE — critical for VIDAA ═══ -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ══════════════════════════════════════════
+       RESET & BASE
+       ══════════════════════════════════════════ */
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0a0a0f;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #fff;
+      cursor: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ══════════════════════════════════════════
+       IFRAME — Double-buffer strategy
+       Only 2 iframes exist at a time to save
+       VIDAA memory. One is visible (active),
+       the other preloads the next page.
+       ══════════════════════════════════════════ */
+    .iframe-slot {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: #0a0a0f;
+      z-index: 1;
+    }
+
+    .iframe-slot.front {
+      z-index: 3;
+      opacity: 1;
+    }
+
+    .iframe-slot.back {
+      z-index: 2;
+      opacity: 0;
+    }
+
+    /* ══════════════════════════════════════════
+       OVERLAY — Bottom bar
+       ══════════════════════════════════════════ */
+    .overlay {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      pointer-events: none;
+    }
+
+    /* Progress bar */
+    .progress-track {
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #6366f1, #8b5cf6, #a78bfa);
+      border-radius: 0 2px 2px 0;
+      box-shadow: 0 0 12px rgba(99, 102, 241, 0.5);
+    }
+
+    /* Info strip */
+    .info-strip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 28px 14px;
+      background: linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.45) 60%, transparent 100%);
+    }
+
+    .info-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .brand-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 14px;
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 8px;
+    }
+
+    .brand-badge .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #6366f1;
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(99,102,241,0.6); }
+      50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(99,102,241,0); }
+    }
+
+    .brand-badge span {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.8);
+    }
+
+    .page-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.95);
+      letter-spacing: 0.3px;
+    }
+
+    .info-right {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    /* Page dots */
+    .page-dots {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .page-dots .dot-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.2);
+      transition: all 0.4s ease;
+    }
+
+    .page-dots .dot-indicator.active {
+      background: #8b5cf6;
+      width: 24px;
+      border-radius: 4px;
+      box-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+    }
+
+    .clock {
+      font-size: 14px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.6);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .counter {
+      font-size: 13px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.4);
+    }
+
+    /* ══════════════════════════════════════════
+       LOADING STATE
+       ══════════════════════════════════════════ */
+    .loading-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #0a0a0f;
+      transition: opacity 0.8s ease;
+    }
+
+    .loading-screen.hide {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .loading-logo {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, #6366f1, #a78bfa, #c084fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 32px;
+    }
+
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(99,102,241,0.15);
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      margin-top: 20px;
+      font-size: 14px;
+      color: rgba(255,255,255,0.4);
+      letter-spacing: 1px;
+    }
+
+    /* ══════════════════════════════════════════
+       WATCHDOG INDICATOR (debug, normally hidden)
+       ══════════════════════════════════════════ */
+    .watchdog-indicator {
+      position: fixed;
+      top: 8px;
+      right: 8px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #22c55e;
+      z-index: 150;
+      opacity: 0.3;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Loading Screen -->
+  <div class="loading-screen" id="loadingScreen">
+    <div class="loading-logo">MODASA</div>
+    <div class="loading-spinner"></div>
+    <div class="loading-text">Cargando dashboards…</div>
+  </div>
+
+  <!-- Double-buffer iframes -->
+  <iframe id="iframeA" class="iframe-slot front" src="about:blank"></iframe>
+  <iframe id="iframeB" class="iframe-slot back"  src="about:blank"></iframe>
+
+  <!-- Watchdog heartbeat indicator -->
+  <div class="watchdog-indicator" id="watchdog"></div>
+
+  <!-- Bottom overlay -->
+  <div class="overlay" id="overlay">
+    <div class="progress-track">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <div class="info-strip">
+      <div class="info-left">
+        <div class="brand-badge">
+          <div class="dot"></div>
+          <span>En vivo</span>
+        </div>
+        <div class="page-name" id="pageName">Cargando…</div>
+      </div>
+      <div class="info-right">
+        <div class="page-dots" id="pageDots"></div>
+        <div class="counter" id="counter">— / —</div>
+        <div class="clock" id="clock">--:--</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ══════════════════════════════════════════
+    // CONFIGURATION
+    // ══════════════════════════════════════════
+    var PAGES = [
+      {
+        name: 'General',
+        url: 'https://app.powerbi.com/view?r=eyJrIjoiZGI4OGM2NDAtMDc3OC00OWY0LTkxNDktNTEwMmNjNjI5MDkzIiwidCI6ImI0YjhmOWZlLTBjYjQtNDFjOS04M2RmLTAxYmM4YTEwYzkxOSIsImMiOjR9&pageName=77df0f56062be9d52906'
+      },
+      {
+        name: 'Belisario',
+        url: 'https://app.powerbi.com/view?r=eyJrIjoiZGI4OGM2NDAtMDc3OC00OWY0LTkxNDktNTEwMmNjNjI5MDkzIiwidCI6ImI0YjhmOWZlLTBjYjQtNDFjOS04M2RmLTAxYmM4YTEwYzkxOSIsImMiOjR9&pageName=974673036704f392c263'
+      },
+      {
+        name: 'Edin',
+        url: 'https://app.powerbi.com/view?r=eyJrIjoiZGI4OGM2NDAtMDc3OC00OWY0LTkxNDktNTEwMmNjNjI5MDkzIiwidCI6ImI0YjhmOWZlLTBjYjQtNDFjOS04M2RmLTAxYmM4YTEwYzkxOSIsImMiOjR9&pageName=e797a1d57a43967bcb45'
+      },
+      {
+        name: 'Gian Marco',
+        url: 'https://app.powerbi.com/view?r=eyJrIjoiZGI4OGM2NDAtMDc3OC00OWY0LTkxNDktNTEwMmNjNjI5MDkzIiwidCI6ImI0YjhmOWZlLTBjYjQtNDFjOS04M2RmLTAxYmM4YTEwYzkxOSIsImMiOjR9&pageName=aba894dec6fabe88125a'
+      },
+      {
+        name: 'Jesús',
+        url: 'https://app.powerbi.com/view?r=eyJrIjoiZGI4OGM2NDAtMDc3OC00OWY0LTkxNDktNTEwMmNjNjI5MDkzIiwidCI6ImI0YjhmOWZlLTBjYjQtNDFjOS04M2RmLTAxYmM4YTEwYzkxOSIsImMiOjR9&pageName=20f5474397b8a292d0ae'
+      },
+      {
+        name: 'Marilia',
+        url: 'https://app.powerbi.com/view?r=eyJrIjoiZGI4OGM2NDAtMDc3OC00OWY0LTkxNDktNTEwMmNjNjI5MDkzIiwidCI6ImI0YjhmOWZlLTBjYjQtNDFjOS04M2RmLTAxYmM4YTEwYzkxOSIsImMiOjR9&pageName=b36eebe4c9fe3f9de6ae'
+      },
+      {
+        name: 'Compras y Envíos Urgentes',
+        url: 'https://app.powerbi.com/view?r=eyJrIjoiYTE3MDIwZGEtYWUyNC00NDc5LWEzMjYtNGFjYzA3ODIwZmI0IiwidCI6ImI0YjhmOWZlLTBjYjQtNDFjOS04M2RmLTAxYmM4YTEwYzkxOSIsImMiOjR9&pageName=a71bd25add4af469794b'
+      }
+    ];
+
+    var INTERVAL_SEC = 20;          // seconds per page
+    var PRELOAD_SEC  = 5;           // start loading next page N sec before switch
+    var FULL_RELOAD_MIN = 30;       // hard-reload entire page every N minutes
+    var WATCHDOG_SEC = 60;          // if JS loop stalls for this long, force reload
+
+    // ══════════════════════════════════════════
+    // STATE
+    // ══════════════════════════════════════════
+    var currentIndex = 0;
+    var elapsed      = 0;
+    var frontSlot    = 'A';   // which iframe is currently visible
+    var preloaded    = false; // has the back iframe been loaded yet?
+
+    var iframeA = document.getElementById('iframeA');
+    var iframeB = document.getElementById('iframeB');
+    var progressBar   = document.getElementById('progressBar');
+    var pageNameEl    = document.getElementById('pageName');
+    var pageDots      = document.getElementById('pageDots');
+    var counterEl     = document.getElementById('counter');
+    var clockEl       = document.getElementById('clock');
+    var loadingScreen = document.getElementById('loadingScreen');
+    var watchdogEl    = document.getElementById('watchdog');
+
+    // ══════════════════════════════════════════
+    // HELPERS
+    // ══════════════════════════════════════════
+
+    /** Append cache-busting timestamp to a URL */
+    function bustCache(url) {
+      var sep = url.indexOf('?') === -1 ? '?' : '&';
+      return url + sep + '_cb=' + Date.now();
+    }
+
+    /** Get front and back iframe refs */
+    function getFront() { return frontSlot === 'A' ? iframeA : iframeB; }
+    function getBack()  { return frontSlot === 'A' ? iframeB : iframeA; }
+
+    /** Swap front↔back */
+    function swapSlots() {
+      var oldFront = getFront();
+      var newFront = getBack();
+
+      oldFront.className = 'iframe-slot back';
+      newFront.className = 'iframe-slot front';
+
+      frontSlot = (frontSlot === 'A') ? 'B' : 'A';
+    }
+
+    /** Nuke an iframe to free memory (critical for VIDAA) */
+    function nukeIframe(iframe) {
+      try {
+        iframe.contentWindow.stop();
+      } catch(e) {}
+      iframe.src = 'about:blank';
+    }
+
+    // ══════════════════════════════════════════
+    // CLOCK
+    // ══════════════════════════════════════════
+    function updateClock() {
+      var now = new Date();
+      var h = ('0' + now.getHours()).slice(-2);
+      var m = ('0' + now.getMinutes()).slice(-2);
+      clockEl.textContent = h + ':' + m;
+    }
+    updateClock();
+    setInterval(updateClock, 10000);
+
+    // ══════════════════════════════════════════
+    // DOTS
+    // ══════════════════════════════════════════
+    (function buildDots() {
+      for (var i = 0; i < PAGES.length; i++) {
+        var d = document.createElement('div');
+        d.className = 'dot-indicator' + (i === 0 ? ' active' : '');
+        pageDots.appendChild(d);
+      }
+    })();
+
+    function updateDots(idx) {
+      var dots = pageDots.querySelectorAll('.dot-indicator');
+      for (var i = 0; i < dots.length; i++) {
+        dots[i].className = 'dot-indicator' + (i === idx ? ' active' : '');
+      }
+    }
+
+    // ══════════════════════════════════════════
+    // UPDATE UI
+    // ══════════════════════════════════════════
+    function updateUI(idx) {
+      pageNameEl.textContent = PAGES[idx].name;
+      counterEl.textContent  = (idx + 1) + ' / ' + PAGES.length;
+      updateDots(idx);
+    }
+
+    // ══════════════════════════════════════════
+    // WATCHDOG — detects frozen JS loops
+    // If the main tick doesn't fire for WATCHDOG_SEC,
+    // the page is likely frozen → force hard reload.
+    // ══════════════════════════════════════════
+    var lastHeartbeat = Date.now();
+
+    function resetWatchdog() {
+      lastHeartbeat = Date.now();
+    }
+
+    // Secondary timer checks the heartbeat
+    setInterval(function() {
+      var gap = Date.now() - lastHeartbeat;
+      if (gap > WATCHDOG_SEC * 1000) {
+        // JS main loop was frozen for too long → hard reload
+        window.location.reload(true);
+      }
+      // Visual heartbeat blink
+      watchdogEl.style.opacity = watchdogEl.style.opacity === '0.3' ? '0.6' : '0.3';
+    }, 5000);
+
+    // ══════════════════════════════════════════
+    // VISIBILITY CHANGE — reload if TV was off
+    // When a VIDAA TV is turned off and on, the
+    // browser tab stays alive but content is stale.
+    // ══════════════════════════════════════════
+    document.addEventListener('visibilitychange', function() {
+      if (!document.hidden) {
+        // Page became visible again (TV turned on)
+        // Force full reload to get fresh data
+        window.location.reload(true);
+      }
+    });
+
+    // Also handle VIDAA focus events
+    window.addEventListener('focus', function() {
+      var gap = Date.now() - lastHeartbeat;
+      // If we've been away for more than 2 minutes, reload
+      if (gap > 120000) {
+        window.location.reload(true);
+      }
+    });
+
+    // ══════════════════════════════════════════
+    // MAIN TICK — runs every 500ms
+    // ══════════════════════════════════════════
+    var TICK_MS = 500;
+
+    function tick() {
+      resetWatchdog();
+
+      elapsed += TICK_MS;
+
+      // Update progress bar
+      var pct = Math.min((elapsed / (INTERVAL_SEC * 1000)) * 100, 100);
+      progressBar.style.width = pct + '%';
+
+      // Preload next page in the BACK iframe N seconds before switch
+      if (!preloaded && elapsed >= (INTERVAL_SEC - PRELOAD_SEC) * 1000) {
+        var nextIdx = (currentIndex + 1) % PAGES.length;
+        var back = getBack();
+        back.src = bustCache(PAGES[nextIdx].url);
+        preloaded = true;
+      }
+
+      // Time to switch!
+      if (elapsed >= INTERVAL_SEC * 1000) {
+        elapsed = 0;
+        preloaded = false;
+        currentIndex = (currentIndex + 1) % PAGES.length;
+
+        // Swap iframes: the back (preloaded) becomes front
+        swapSlots();
+
+        // Nuke the old front (now back) to free memory
+        var oldSlot = getBack();
+        setTimeout(function() {
+          nukeIframe(oldSlot);
+        }, 1000);
+
+        updateUI(currentIndex);
+      }
+    }
+
+    // ══════════════════════════════════════════
+    // FULL PAGE RELOAD — keep everything fresh
+    // ══════════════════════════════════════════
+    setTimeout(function() {
+      window.location.reload(true);
+    }, FULL_RELOAD_MIN * 60 * 1000);
+
+    // ══════════════════════════════════════════
+    // INIT
+    // ══════════════════════════════════════════
+    function init() {
+      // Load first page into front iframe with cache bust
+      var front = getFront();
+      front.src = bustCache(PAGES[0].url);
+      updateUI(0);
+
+      // Wait for first page to render, then start rotation
+      front.addEventListener('load', function onFirstLoad() {
+        front.removeEventListener('load', onFirstLoad);
+        loadingScreen.classList.add('hide');
+        setInterval(tick, TICK_MS);
+      });
+
+      // Fallback: if load event never fires (VIDAA quirk), start after 8s
+      setTimeout(function() {
+        if (!loadingScreen.classList.contains('hide')) {
+          loadingScreen.classList.add('hide');
+          setInterval(tick, TICK_MS);
+        }
+      }, 8000);
+    }
+
+    init();
+  </script>
+</body>
+</html>
